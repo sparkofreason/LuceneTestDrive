@@ -13,21 +13,47 @@ using Lucene.Net.Search;
 using Lucene.Net.QueryParsers;
 using System.Text.RegularExpressions;
 using System.Net;
+using Similarity.Net;
+using System.Collections;
 
 namespace LuceneTestDrive
 {
     class Program
     {
-        static dynamic Repo { get; set; }
-
+        static Repository Repo { get; set; }
+        static string[] StopWords = new[] {  
+                    "I", "A", "Be", "The", "An", "And", "Or", "But", "This", "is", "should",
+                    "to", "from", "for", "reasonable", "access" };
         static void Main(string[] args)
         {
+            var stopWords = new Hashtable(StringComparer.InvariantCultureIgnoreCase);
+            foreach (var s in StopWords)
+            {
+                stopWords[s] = s;
+            }
             var connectionString = "Data Source=(local);Initial Catalog=AllgressDB;Integrated Security=true";
             Repo = new Repository(connectionString);
             var directory = PopulateIndex();
 
             //SearchForTerm(directory);
-
+            var policy = Repo.GetPolicySection(35);
+            string text = Convert(policy.Text);
+            using (var reader = DirectoryReader.Open(directory, true))
+            using (var indexSearcher = new IndexSearcher(reader))
+            {
+                var moreLikeThis = new MoreLikeThis(reader);
+                moreLikeThis.SetStopWords(stopWords);
+                moreLikeThis.SetFieldNames(new[] { "description", "procedures", "objectives", "references" });
+                moreLikeThis.SetBoost(true);
+                moreLikeThis.SetMinDocFreq(2);
+                moreLikeThis.SetMinTermFreq(1);
+                var query = moreLikeThis.Like(text);
+                (query as BooleanQuery).Add(new TermQuery(new Term("type", "policy")), Occur.MUST_NOT);
+                moreLikeThis.SetAnalyzer(new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_29));
+                var docs = from scoreDoc in indexSearcher.Search(query, null, 1000).ScoreDocs
+                           select new ScoredDocument { Score = scoreDoc.Score, Document = indexSearcher.Doc(scoreDoc.Doc) };
+                var results = docs.ToArray();
+            }
             Console.ReadKey();
         }
 
@@ -97,6 +123,7 @@ namespace LuceneTestDrive
                     {
                         doc.Add(new Field("references", Convert(standard.References), Field.Store.YES, Field.Index.ANALYZED));
                     }
+                    indexWriter.AddDocument(doc);
                 }
             }
 
@@ -174,6 +201,12 @@ namespace LuceneTestDrive
                 db.StandardComponent.Objectives,
                 db.StandardComponent.References
                 );
+        }
+
+        public dynamic GetPolicySection(int id)
+        {
+            var db = Database.OpenConnection(ConnectionString);
+            return db.PolicySectionText.FindById(id);
         }
     }
 }

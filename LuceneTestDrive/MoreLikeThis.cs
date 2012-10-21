@@ -33,6 +33,7 @@ using TokenStream = Lucene.Net.Analysis.TokenStream;
 using StandardAnalyzer = Lucene.Net.Analysis.Standard.StandardAnalyzer;
 using Document = Lucene.Net.Documents.Document;
 using Version = Lucene.Net.Util.Version;
+using System.Text;
 
 namespace Similarity.Net
 {
@@ -551,6 +552,11 @@ namespace Similarity.Net
         public Query Like(System.IO.StreamReader r)
         {
             return CreateQuery(RetrieveTerms(r));
+        }
+
+        public Query Like(string s)
+        {
+            return Like(new StreamReader(new MemoryStream(Encoding.ASCII.GetBytes(s))));
         }
 
         /// <summary> Create the More like query from a PriorityQueue</summary>
