@@ -11,24 +11,35 @@ using Lucene.Net.Store;
 using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.QueryParsers;
+using System.Text.RegularExpressions;
+using System.Net;
 
 namespace LuceneTestDrive
 {
     class Program
     {
+        static dynamic Repo { get; set; }
+
         static void Main(string[] args)
         {
+            var connectionString = "Data Source=(local);Initial Catalog=AllgressDB;Integrated Security=true";
+            Repo = new Repository(connectionString);
             var directory = PopulateIndex();
-            var results = Search(directory, "text:lorem");
-            //results.First().doc.g 
+            var results = Search(directory, "text:email");
+            foreach (var doc in results.Take(5))
+            {
+                Console.WriteLine("Score = {0}", doc.Score);
+                Console.WriteLine("Text\n{0}", doc.Document.Get("text"));
+                Console.WriteLine("-----------------------------------------");
+            }
+
+            Console.ReadKey();
         }
 
         static Lucene.Net.Store.Directory PopulateIndex()
         {
-            var connectionString = "Data Source=(local);Initial Catalog=AllgressDB;Integrated Security=true";
-            var repo = new Repository(connectionString);
-            var policies = repo.GetAllPolicySections();
-            var standards = repo.GetAllStandardComponents();
+            var policies = Repo.GetAllPolicySections();
+            var standards = Repo.GetAllStandardComponents();
 
             var analyzer = new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_29);
 
@@ -38,22 +49,48 @@ namespace LuceneTestDrive
             //Directory directory = FSDirectory.open("/tmp/testindex");
             using (var indexWriter = new IndexWriter(directory, analyzer, IndexWriter.MaxFieldLength.UNLIMITED))
             {
-                foreach (var standard in policies)
+                foreach (var policy in policies)
+                {
+                    Document doc = new Document();
+                    doc.Add(new Field("id", policy.Id.ToString(), Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    doc.Add(new Field("type", "policy", Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    doc.Add(new Field("sectionName", policy.SectionName, Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    doc.Add(new Field("policyName", policy.PolicyName, Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    if (policy.Comments != null)
+                    {
+                        doc.Add(new Field("comments", Convert(policy.Comments), Field.Store.YES, Field.Index.ANALYZED));
+                    }
+                    if (policy.Text != null)
+                    {
+                        doc.Add(new Field("text", Convert(policy.Text), Field.Store.YES, Field.Index.ANALYZED));
+                    }
+                    indexWriter.AddDocument(doc);
+                }
+
+                foreach (var standard in standards)
                 {
                     Document doc = new Document();
                     doc.Add(new Field("id", standard.Id.ToString(), Field.Store.YES, Field.Index.NOT_ANALYZED));
-                    doc.Add(new Field("type", "policy", Field.Store.YES, Field.Index.NOT_ANALYZED));
-                    doc.Add(new Field("sectionName", standard.SectionName, Field.Store.YES, Field.Index.NOT_ANALYZED));
-                    doc.Add(new Field("policyName", standard.PolicyName, Field.Store.YES, Field.Index.NOT_ANALYZED));
-                    if (standard.Comments != null)
+                    doc.Add(new Field("type", "standard", Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    doc.Add(new Field("standardname", standard.StandardName, Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    doc.Add(new Field("number", standard.Number, Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    doc.Add(new Field("name", standard.Name, Field.Store.YES, Field.Index.NOT_ANALYZED));
+                    if (standard.Description != null)
                     {
-                        doc.Add(new Field("comments", standard.Comments, Field.Store.YES, Field.Index.ANALYZED));
+                        doc.Add(new Field("description", Convert(standard.Description), Field.Store.YES, Field.Index.ANALYZED));
                     }
-                    if (standard.Text != null)
+                    if (standard.Procedures != null)
                     {
-                        doc.Add(new Field("text", standard.Text, Field.Store.YES, Field.Index.ANALYZED));
+                        doc.Add(new Field("procedures", Convert(standard.Procedures), Field.Store.YES, Field.Index.ANALYZED));
                     }
-                    indexWriter.AddDocument(doc);
+                    if (standard.Objectives != null)
+                    {
+                        doc.Add(new Field("objectives", Convert(standard.Objectives), Field.Store.YES, Field.Index.ANALYZED));
+                    }
+                    if (standard.References != null)
+                    {
+                        doc.Add(new Field("references", Convert(standard.References), Field.Store.YES, Field.Index.ANALYZED));
+                    }
                 }
             }
 
@@ -74,6 +111,21 @@ namespace LuceneTestDrive
                 return docs.ToArray();
             }
         }
+
+        static string Convert(string template)
+        {
+            template = Regex.Replace(template, "<img .*?alt=[\"']?([^\"']*)[\"']?.*?/?>", "$1"); // Use image alt text. 
+            template = Regex.Replace(template, "<a .*?href=[\"']?([^\"']*)[\"']?.*?>(.*)</a>", "$2 [$1]"); // Convert links to something useful 
+            template = Regex.Replace(template, "<(/p|/div|/h\\d|br)\\w?/?>", " "); // Let's try to keep vertical whitespace intact. 
+            template = Regex.Replace(template, "<[A-Za-z/][^<>]*>", ""); // Remove the rest of the tags. 
+            template = Regex.Replace(template, "\n", " "); // Remove the rest of the tags. 
+            template = Regex.Replace(template, "\r", " "); // Remove the rest of the tags. 
+            template = Regex.Replace(template, "<", " "); // Remove the rest of the tags. 
+            template = WebUtility.HtmlDecode(template); // Convert to plain text
+
+            return template;
+        }
+
     }
 
     public class ScoredDocument
@@ -94,7 +146,6 @@ namespace LuceneTestDrive
         public IEnumerable<dynamic> GetAllPolicySections()
         {
             var db = Database.OpenConnection(ConnectionString);
-            //return db.PolicySectionText.All();
             return db.PolicySectionText.All().Select(
                 db.PolicySectionText.Id,
                 db.PolicySectionText.Comments,
@@ -106,7 +157,17 @@ namespace LuceneTestDrive
 
         public IEnumerable<dynamic> GetAllStandardComponents()
         {
-            throw new NotFiniteNumberException();
+            var db = Database.OpenConnection(ConnectionString);
+            return db.StandardComponent.All().Select(
+                db.StandardComponent.Id,
+                db.StandardComponent.Standard.Name.As("StandardName"),
+                db.StandardComponent.Number,
+                db.StandardComponent.Name,
+                db.StandardComponent.Description,
+                db.StandardComponent.Procedures,
+                db.StandardComponent.Objectives,
+                db.StandardComponent.References
+                );
         }
     }
 }
