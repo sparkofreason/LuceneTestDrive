@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>SimpleLucene</id>
+    <version>1.0.0.1</version>
+    <title>SimpleLucene</title>
+    <authors>Ben Foster, Paul Knopf</authors>
+    <owners>Ben Foster, Paul Knopf</owners>
+    <licenseUrl>http://simplelucene.codeplex.com/license</licenseUrl>
+    <projectUrl>http://simplelucene.codeplex.com/</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>SimpleLucene is a wrapper for the popular Lucene.NET search engine.
+
+It makes common Lucene tasks such as creating, indexing and maintaining your index much easier.</description>
+    <summary>SimpleLucene is a wrapper for the popular Lucene.NET search engine.
+
+It makes common Lucene tasks such as creating, indexing and maintaining your index much easier.</summary>
+    <tags>lucene simplelucene</tags>
+    <dependencies>
+      <dependency id="Lucene.Net" version="2.9.4.1" />
+    </dependencies>
+  </metadata>
+</package>
