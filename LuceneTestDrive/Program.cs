@@ -25,15 +25,21 @@ namespace LuceneTestDrive
             var connectionString = "Data Source=(local);Initial Catalog=AllgressDB;Integrated Security=true";
             Repo = new Repository(connectionString);
             var directory = PopulateIndex();
-            var results = Search(directory, "text:email");
+
+            //SearchForTerm(directory);
+
+            Console.ReadKey();
+        }
+
+        private static void SearchForTerm(Lucene.Net.Store.Directory directory)
+        {
+            var results = Search(directory, "text:email~");
             foreach (var doc in results.Take(5))
             {
                 Console.WriteLine("Score = {0}", doc.Score);
                 Console.WriteLine("Text\n{0}", doc.Document.Get("text"));
                 Console.WriteLine("-----------------------------------------");
             }
-
-            Console.ReadKey();
         }
 
         static Lucene.Net.Store.Directory PopulateIndex()
@@ -107,7 +113,7 @@ namespace LuceneTestDrive
                 var parser = new QueryParser(Lucene.Net.Util.Version.LUCENE_29, queryString, new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_29));
                 var query = parser.Parse(queryString);
                 var docs = from scoreDoc in indexSearcher.Search(query, null, 1000).ScoreDocs
-                           select new ScoredDocument { Score = scoreDoc.score, Document = indexSearcher.Doc(scoreDoc.doc) };
+                           select new ScoredDocument { Score = scoreDoc.Score, Document = indexSearcher.Doc(scoreDoc.Doc) };
                 return docs.ToArray();
             }
         }
